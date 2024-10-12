@@ -1,5 +1,6 @@
+// nfc_scan_screen.dart
 import 'dart:convert';
-
+import 'package:demo1/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 
@@ -10,14 +11,7 @@ class NfcScanScreen extends StatefulWidget {
 
 class _NfcScanScreenState extends State<NfcScanScreen> {
   String _nfcData = 'Scan an NFC card to get details';
-
-  // Define a random array of maps to simulate existing data
-  List<Map<String, dynamic>> predefinedData = [
-    {"id": 1, "mat_no": "item1"},
-    {"id": 2, "mat_no": "item2"},
-    {"id": 3, "mat_no": "BHU/21/04/05/0079"}, // Example item for matching
-    {"id": 4, "mat_no": "item4"},
-  ];
+  final ApiService _apiService = ApiService(); // Set your base URL
 
   @override
   void initState() {
@@ -38,8 +32,6 @@ class _NfcScanScreenState extends State<NfcScanScreen> {
     try {
       await NfcManager.instance.startSession(
         onDiscovered: (NfcTag tag) async {
-
-          // check if tag has ndef data
           var ndef = Ndef.from(tag);
           if (ndef == null) {
             setState(() {
@@ -48,7 +40,6 @@ class _NfcScanScreenState extends State<NfcScanScreen> {
             return;
           }
 
-          // read ndef message
           NdefMessage? ndefMessage = await ndef.read();
           if (ndefMessage == null || ndefMessage.records.isEmpty) {
             setState(() {
@@ -57,28 +48,18 @@ class _NfcScanScreenState extends State<NfcScanScreen> {
             return;
           }
 
-          // parse ndef message
+          // Parse the NDEF message to extract the content
           String nfcContent = ndefMessage.records
               .map((record) => String.fromCharCodes(record.payload.sublist(record.payload[0] + 1)))
-              .join('\n'); // Join multiple records
+              .join('\n');
 
-          // fetch mat_no from the NFC content
-          // assuming the content is JSON formatted
           Map<String, dynamic> scannedData = _parseNfcData(nfcContent);
 
           if (scannedData.isNotEmpty) {
             String scannedMatNo = scannedData['mat_no'] ?? '';
 
-            // Check if the scanned mat_no exists in predefined data
-            bool isMatch = predefinedData.any((item) => item['mat_no'] == scannedMatNo);
-
-            setState(() {
-              if (isMatch) {
-                _nfcData = 'Match found for mat_no: $scannedMatNo';
-              } else {
-                _nfcData = 'No match found for mat_no: $scannedMatNo';
-              }
-            });
+            // Fetch user details by mat_no from the API service
+            await _fetchUserDetails(scannedMatNo);
           }
 
           await NfcManager.instance.stopSession();
@@ -89,17 +70,30 @@ class _NfcScanScreenState extends State<NfcScanScreen> {
         _nfcData = 'Error reading NFC card: $error';
       });
     }
-
-    return; // Explicitly return void
   }
 
+  // Function to parse NFC data as JSON
   Map<String, dynamic> _parseNfcData(String nfcContent) {
     try {
-      // Parse the NFC content as JSON
       return Map<String, dynamic>.from(jsonDecode(nfcContent));
     } catch (e) {
-      // Handle parsing error if the content is not in JSON format
       return {};
+    }
+  }
+
+  // Fetch user details by mat_no from the API service
+  Future<void> _fetchUserDetails(String matricNo) async {
+    try {
+      final userData = await _apiService.fetchUserDetails(matricNo);
+      print(userData);
+
+      setState(() {
+        _nfcData = 'User found: ${userData['first_name']} ${userData['last_name']}';
+      });
+    } catch (error) {
+      setState(() {
+        _nfcData = 'Error: $error';
+      });
     }
   }
 

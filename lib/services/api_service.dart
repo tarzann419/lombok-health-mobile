@@ -44,4 +44,22 @@ class ApiService {
       return false;
     }
   }
+
+
+  Future<Map<String, dynamic>> fetchUserDetails(String matricNo) async {
+    final url = Uri.parse('$localBaseUrl/users/find-by-matric-no/$matricNo');
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        // Parse and return the user data as JSON
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('User not found');
+      }
+    } catch (error) {
+      throw Exception('Failed to fetch user details: $error');
+    }
+  }
 }
